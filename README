@@ -2,3 +2,5 @@ To run:
 1. Go into config file and set the path of database and definitions
 	- inside database folder should has folder 00000-nnnnn folder of mimic patients
 	- inside definitions folder should have D_CAREGIVERS D_CAREUNITS D_IOITEMS D_MEDITEMS and etc. These all files are given from mimic clinical dataset.
+
+FOR NEWEST VERSION  >> https://github.com/nik9618/mimiccdb
