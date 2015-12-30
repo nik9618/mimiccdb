@@ -593,15 +593,38 @@ def patientObject(id):
 				else:
 					obj['ELSE'][focus].append(sobj)
 
-	obj = clearDataType(obj);
-	obj = categorize(obj);
-	
+	obj = clearDataType(obj)
+	obj = categorize(obj)
+	obj = embedMicro(obj)
+
 	# -- visualize
 	fs = open ("result.txt", 'w');
 	fs.write(json.dumps(obj))
 	fs.close()
+
 	return obj
 
+def embedMicro(obj):
+	assert len(obj['ELSE']['MICROBIOLOGYEVENTS']) == 0
+	for i in obj['ADMISSIONS']:
+		for j in obj['ADMISSIONS'][i]['ICUSTAY']:
+			obj['ADMISSIONS'][i]['ICUSTAY'][j]['MICROBIOLOGYEVENTS'] = [];
+		
+		for me in obj['ADMISSIONS'][i]['MICROBIOLOGYEVENTS']:
+			if(me['CHARTTIME'] != None):
+				charttime = datetime.strptime(me['CHARTTIME'], '%Y-%m-%d %H:%M:%S')
+				for j in obj['ADMISSIONS'][i]['ICUSTAY']:
+					intime =  datetime.strptime(obj['ADMISSIONS'][i]['ICUSTAY'][j]['DETAIL']['ICUSTAY_INTIME'], '%Y-%m-%d %H:%M:%S')
+					outtime = datetime.strptime(obj['ADMISSIONS'][i]['ICUSTAY'][j]['DETAIL']['ICUSTAY_OUTTIME'], '%Y-%m-%d %H:%M:%S')
+					if (intime<=charttime and charttime < outtime):
+						obj['ADMISSIONS'][i]['ICUSTAY'][j]['MICROBIOLOGYEVENTS'].append(me)
+					else:
+						obj['ELSE']['MICROBIOLOGYEVENTS'].append(me)
+			else:
+				obj['ELSE']['MICROBIOLOGYEVENTS'].append(me)
+
+
+	return obj
 
 def categorizeByID(obj,arr,field):
 	total = {}
@@ -615,7 +638,7 @@ def categorize(obj):
 	for i in obj['ADMISSIONS']:
 		categorizeByID(obj['ADMISSIONS'][i], 'PROCEDUREEVENTS', 'ITEMID')
 		categorizeByID(obj['ADMISSIONS'][i], 'DRGEVENTS', 'ITEMID')
-		
+
 		for j in obj['ADMISSIONS'][i]['ICUSTAY']:
 			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'IOEVENTS', 'ITEMID')
 			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'TOTALBALEVENTS', 'ITEMID')
@@ -639,7 +662,7 @@ def categorize(obj):
 		categorizeByID(obj['ELSE'], 'MEDEVENTS', 'ITEMID')
 		categorizeByID(obj['ELSE'], 'DELIVERIES', 'IOITEMID')
 		categorizeByID(obj['ELSE'], 'A_IODURATIONS', 'ITEMID')
-		categorizeByID(obj['ELSE'], 'A_MEDDURATIONS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'A_MEDDURATIONS', 'ITEMID')		
 		pass;
 	return obj
 
@@ -929,7 +952,7 @@ def clearDataType(obj):
 jdata = readDef();
 
 if __name__ == "__main__":
-	patientObject(571);
+	patientObject(109);
 	# for i in range(1,1000):
 	# 	print i
 	# 	# if i not in xid:
