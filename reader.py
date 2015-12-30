@@ -39,22 +39,44 @@ def t(d,k,i=0):
 def pathFile(id,key):
 	return ("%s/%.5d/%s-%.5d.txt") % (datapath, id, key,id)		
 
-def toDate(str):
-	if(str == ''):
-		str = None
+def toDate(s):
+	if(s == ''):
+		s = None
 	else:
-		# str = datetime.strptime(str, '%Y-%m-%d')	
+		s = str(datetime.strptime(s, '%Y-%m-%d'))
 		pass;
-	return str
+	return s
 
-def toDatetime(str):
-	if(str == ''):
-		str = None
+def toDateConv(s):
+	if(s == ''):
+		s = None
 	else:
-		# assert str[len(str)-4:len(str)] == ' EST'
-		# str = datetime.strptime(str[0:-4], '%Y-%m-%d %H:%M:%S')	
+		assert dobDate != None
+		diff = datetime.strptime(s, '%Y-%m-%d')-dobDate
+		days, seconds = diff.days, diff.seconds
+		s = days
 		pass;
-	return str
+	return s
+
+def toDatetime(s):
+	if(s == ''):
+		s = None
+	else:
+		assert s[len(s)-4:len(s)] == ' EST'
+		s = str(datetime.strptime(s[0:-4], '%Y-%m-%d %H:%M:%S'))
+		pass;
+	return s
+
+def toDatetimeConv(s):
+	if(s == ''):
+		s = None
+	else:
+		assert s[len(s)-4:len(s)] == ' EST'
+		diff = datetime.strptime(s[0:-4], '%Y-%m-%d %H:%M:%S') - dobDate
+		# minutes = diff.days *24*60 + diff.seconds / 60 
+		return diff.days,diff.seconds/60.
+		pass;
+	return s
 
 def toInt(str):
 	if(str == None):
@@ -85,10 +107,16 @@ def changeType(obj,types):
 		if(types[t] == 'float'):
 			obj[t] = toFloat(obj[t])
 		if(types[t] == 'date'):
-			obj[t] = toDate(obj[t])
+			tmp = obj[t]
+			obj[t] = toDate(tmp)
+			obj[t+"_diffdays"] = toDateConv(tmp)
 			pass;
 		if(types[t] == 'datetime'):
-			obj[t] = toDatetime(obj[t])
+			tmp = obj[t] 
+			obj[t] = toDatetime(tmp)
+			x = toDatetimeConv(tmp)
+			if(x != None):
+				obj[t+"_diff"] = {'days':x[0] , 'mins':x[1]}
 			pass;
 
 def joinEngine(header,data,f,stname, bydef):
@@ -283,6 +311,7 @@ def readPatient(id):
 
 	return patient
 
+dobDate = None
 def patientObject(id):
 	
 	EMBED_DRGEVENTS_MICROBIOLOGYEVENTS_PROCEDUREEVENTS = True
@@ -299,6 +328,10 @@ def patientObject(id):
 	obj['SUBJECT_ID'] = t(data['D_PATIENTS'],'SUBJECT_ID')
 	obj['SEX'] = t(data['D_PATIENTS'],'SEX')
 	obj['DOB'] = t(data['D_PATIENTS'],'DOB')
+	assert obj['DOB'] != ''
+	global dobDate
+	dobDate = datetime.strptime(obj['DOB'], '%Y-%m-%d')
+	# print "DOB : "+ str(dobDate)
 	obj['DOD'] = t(data['D_PATIENTS'],'DOD')
 	obj['HOSPITAL_EXPIRE_FLG'] = t(data['D_PATIENTS'],'HOSPITAL_EXPIRE_FLG')
 
@@ -561,6 +594,7 @@ def patientObject(id):
 					obj['ELSE'][focus].append(sobj)
 
 	obj = clearDataType(obj);
+	obj = categorize(obj);
 	
 	# -- visualize
 	fs = open ("result.txt", 'w');
@@ -568,12 +602,53 @@ def patientObject(id):
 	fs.close()
 	return obj
 
+
+def categorizeByID(obj,arr,field):
+	total = {}
+	for i in range(len(obj[arr] )):
+		if obj[arr][i][field] not in total:
+			total[obj[arr][i][field] ] = []
+		total[ obj[arr][i][field] ].append(obj[arr][i])
+	obj[arr+"_C"] = total
+
+def categorize(obj):
+	for i in obj['ADMISSIONS']:
+		categorizeByID(obj['ADMISSIONS'][i], 'PROCEDUREEVENTS', 'ITEMID')
+		categorizeByID(obj['ADMISSIONS'][i], 'DRGEVENTS', 'ITEMID')
+		
+		for j in obj['ADMISSIONS'][i]['ICUSTAY']:
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'IOEVENTS', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'TOTALBALEVENTS', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'CHARTEVENTS', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'LABEVENTS', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'ADDITIVES', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'A_CHARTDURATIONS', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'MEDEVENTS', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'DELIVERIES', 'IOITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'A_IODURATIONS', 'ITEMID')
+			categorizeByID(obj['ADMISSIONS'][i]['ICUSTAY'][j], 'A_MEDDURATIONS', 'ITEMID')
+		
+		categorizeByID(obj['ELSE'], 'PROCEDUREEVENTS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'DRGEVENTS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'IOEVENTS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'TOTALBALEVENTS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'CHARTEVENTS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'LABEVENTS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'ADDITIVES', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'A_CHARTDURATIONS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'MEDEVENTS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'DELIVERIES', 'IOITEMID')
+		categorizeByID(obj['ELSE'], 'A_IODURATIONS', 'ITEMID')
+		categorizeByID(obj['ELSE'], 'A_MEDDURATIONS', 'ITEMID')
+		pass;
+	return obj
+
 def clearDataType(obj):
-	
 	# -- D_PATIENTS
 	obj['DIE_IN_HOSP'] 	= 1 if obj['HOSPITAL_EXPIRE_FLG']=='Y' else 0
 	del obj['HOSPITAL_EXPIRE_FLG']
 	changeType(obj, {'DOD':'date','DOB':'date','SUBJECT_ID':'int'})
+	# print obj['DOB']
 	
 	# -- ADMISSIONS
 	for i in obj['ADMISSIONS']:
@@ -630,7 +705,7 @@ def clearDataType(obj):
 	 
 		# -- PROCEDUREEVENTS
 		for j in obj['ADMISSIONS'][i]['PROCEDUREEVENTS']:
-			changeType(j, {'SUBJECT_ID':'int','HADM_ID':'int','ITEMID':'int','SEQUENCE_NUM':'int','PROC_DT':'datetime'})
+			changeType(j, {'SUBJECT_ID':'int','HADM_ID':'int','ITEMID':'int','SEQUENCE_NUM':'int','PROC_DT':'date'})
 			changeType(j['ITEMID_J'], {'ITEMID':'int'})
 
 	
@@ -849,16 +924,14 @@ def clearDataType(obj):
 	for j in obj['ELSE']['DEMOGRAPHICEVENTS']:
 		changeType(j, {'ITEMID':'int','SUBJECT_ID':'int','HADM_ID':'int'})
 		changeType(j['ITEMID_J'], {'ITEMID':'int'})
-
 	return obj
 
 jdata = readDef();
 
 if __name__ == "__main__":
-	# pass;
-	patientObject(288);
+	patientObject(571);
 	# for i in range(1,1000):
 	# 	print i
-	# 	if i not in xid:
-	# 		d = patientObject(i)
+	# 	# if i not in xid:
+	# 	d = patientObject(i)
 	
